@@ -60,8 +60,6 @@
 
 # GUI Display System
 
-* **Description**: A graphical user interface (GUI) has been added.
-
 ### **Buy and Sell Stocks**
 
 * **Description**: Users can buy and sell stocks through the GUI, specifying the date of transactions.
