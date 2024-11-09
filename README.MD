@@ -48,18 +48,6 @@
 * **Description**: Users can create one or more portfolios containing shares of various stocks. This
   program can calculate the total value of a portfolio on a specific date.
 
-## **User Interface / Interactivity**
-
-
-* **Description**: The program includes an interactive text-based interface that guides the user
-  through the different features. The interface handles user inputs and errors gracefully.
-
-## **Design and Testing**
-
-
-* **Description**: The program follows the model-view-controller design pattern. Each component is
-  well-documented, and the code is structured for readability and maintainability. Comprehensive
-  testing has been conducted to ensure functionality and reliability.
 
 ## **Stock Data Source**
 
@@ -70,25 +58,16 @@
 * API calls, for that reason there is no auto downloading, users must explicitly use our download
   command available in the user interface.
 
-# 7.Added GUI Display System
+# GUI Display System
 
-
-
-* **Status**: In Progress
 * **Description**: A graphical user interface (GUI) has been added.
 
 ### **Buy and Sell Stocks**
-
-
-
 
 * **Description**: Users can buy and sell stocks through the GUI, specifying the date of transactions.
 
 
 ### **View All Portfolios**
-
-
-
 
 * **Description**: Users can view all their portfolios through the GUI.
 
@@ -96,14 +75,9 @@
 # **Create, Logout, Set, and Save Portfolios**
 
 
-
-
 * **Description**: Users can create new portfolios, log out, set portfolio, and save their portfolios through the GUI.
 
 
 ### **View Total, Distribution, and Composition of Portfolios on a Certain Date**
-
-
-
 
 * **Description**: Users can view the total value, distribution, and composition of their portfolios on a specific date.
