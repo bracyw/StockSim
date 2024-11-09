@@ -4,7 +4,6 @@
 
 ### **1. Examine Gain or Loss of a Stock Over a Specified Period**
 
-* **Status**:Complete
 * **Description**: This feature allows the user to specify a stock and a date range to examine the
   gain or loss over that period. The program calculates the difference between the closing prices on
   the start and end dates.
