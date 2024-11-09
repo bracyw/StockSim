@@ -42,7 +42,7 @@
 * **Description**: Users are able to buy stocks at specific dates and times.
 * can see composition / distribution / value of a portfolio
 
-#### **7. Multiple Portfolios
+#### **7. Multiple Portfolios**
 
 
 * **Description**: Users can create one or more portfolios containing shares of various stocks. This
