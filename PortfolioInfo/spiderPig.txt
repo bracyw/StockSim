@@ -1,0 +1,3 @@
+spiderPig
+2001-01-01
+buy AAPL 50.0,buy MSFT 30.0,rebalance AAPL 50.0 MSFT 50.0,buy AAPL 15.0,rebalance AAPL 50.0 MSFT 50.0,buy AAPL 30.0,buy COST 15.0
