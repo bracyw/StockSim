@@ -69,7 +69,7 @@
 * **Description**: Users can view all their portfolios through the GUI.
 
 
-# **Create, Logout, Set, and Save Portfolios**
+### **Create, Logout, Set, and Save Portfolios**
 
 
 * **Description**: Users can create new portfolios, log out, set portfolio, and save their portfolios through the GUI.
