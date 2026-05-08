@@ -30,11 +30,14 @@ Evaluate every changed file against the following checklist. Only report items t
 - [ ] Transaction boundaries are not too broad — long-running transactions hold DB connections and locks
 - [ ] `@Transactional` is on service methods, not on repository or controller methods
 - [ ] No transaction-sensitive work (HTTP calls, messaging) inside a transaction that would hold a connection open during I/O
+- [ ] An uncaught `RuntimeException` in a nested `REQUIRED` call marks the outer transaction as rollback-only — even if the outer method catches the exception, commit fails with `UnexpectedRollbackException`
+- [ ] Catching and swallowing exceptions inside a `@Transactional` method does not prevent Spring from seeing them via the proxy — verify rollback behavior is as intended
 
 ### 2. JPA / Hibernate
 
 - [ ] No N+1 query problems: collections accessed in loops should use `JOIN FETCH`, `@EntityGraph`, or `@BatchSize`
 - [ ] `FetchType.EAGER` is not used on `@OneToMany` or `@ManyToMany` (always prefer `LAZY`)
+- [ ] `@ManyToOne` and `@OneToOne` explicitly set `fetch = FetchType.LAZY` — their default is `EAGER`, which is the most common hidden N+1 source
 - [ ] Bidirectional relationships have a proper owning side (`mappedBy`) and both sides are kept in sync
 - [ ] `equals()` and `hashCode()` on entities use business key or ID — never rely on Lombok `@Data` which uses all fields
 - [ ] Entity classes are not `final` (breaks Hibernate proxy generation)
@@ -45,6 +48,9 @@ Evaluate every changed file against the following checklist. Only report items t
 - [ ] Avoid `SELECT *` via projections or DTOs for read-heavy queries that don't need full entities
 - [ ] No open-session-in-view anti-pattern for production code (check `spring.jpa.open-in-view=false`)
 - [ ] Queries that return large result sets use pagination (`Pageable`) instead of unbounded `findAll()`
+- [ ] Calling `.size()` on a lazy collection triggers full loading — use a `COUNT` query instead
+- [ ] Saving entities in a loop uses `saveAll()` with `hibernate.jdbc.batch_size` configured, not individual `save()` calls
+- [ ] `hibernate.enable_lazy_load_no_trans` is NOT set to `true` (opens a new session per lazy load, destroying connection efficiency)
 
 ### 3. REST API Design
 
@@ -59,6 +65,8 @@ Evaluate every changed file against the following checklist. Only report items t
 - [ ] `@RestControllerAdvice` handles exceptions globally — no `try/catch` blocks in controllers returning error DTOs
 - [ ] Sensitive data (passwords, tokens, internal IDs) is not exposed in responses
 - [ ] Date/time fields use ISO-8601 format via `@JsonFormat` or Jackson configuration
+- [ ] Unbounded list inputs have `@Size(max=...)` to prevent DoS via massive payloads
+- [ ] `@Validated` is on the controller class when using constraint annotations on `@RequestParam` or `@PathVariable` (method-level parameter validation requires class-level `@Validated`)
 
 ### 4. Dependency Injection & Bean Design
 
@@ -68,6 +76,8 @@ Evaluate every changed file against the following checklist. Only report items t
 - [ ] `@Service`, `@Repository`, `@Component` are used appropriately — not interchangeably
 - [ ] Configuration values use `@ConfigurationProperties` with validation over scattered `@Value` annotations
 - [ ] No `static` mutable state in Spring beans (singletons are shared across requests)
+- [ ] Multiple beans of the same type have `@Qualifier` or `@Primary` to prevent `NoUniqueBeanDefinitionException`
+- [ ] `@ComponentScan` base packages are not overly broad — scanning unnecessary packages slows startup and can pull in unintended beans
 
 ### 5. Security (OWASP Top 10)
 
@@ -88,7 +98,27 @@ Evaluate every changed file against the following checklist. Only report items t
 - [ ] Stack traces are not returned to API callers in production (log internally, return user-friendly message)
 - [ ] `Optional` is used instead of returning null from service methods for "not found" scenarios
 
-### 7. Performance
+### 7. @Async & Concurrency
+
+- [ ] `@Async` is not used without `@EnableAsync` on a configuration class (the annotation is silently ignored)
+- [ ] No self-invocation of `@Async` methods within the same class (same proxy bypass as `@Transactional`)
+- [ ] A custom `ThreadPoolTaskExecutor` is configured — the default `SimpleAsyncTaskExecutor` creates a new thread per call and never reuses them, leading to OOM under load
+- [ ] `void` `@Async` methods have an `AsyncUncaughtExceptionHandler` — exceptions from void async methods are silently lost
+- [ ] `@Async` methods return `CompletableFuture<T>` instead of `void` when callers need completion/error signals
+- [ ] `SecurityContext` propagation is handled for `@Async` threads (it does not propagate by default)
+- [ ] MDC (logging correlation IDs) is propagated to async threads via a `TaskDecorator`
+- [ ] `@Scheduled` methods in clustered deployments use distributed locking (ShedLock, Quartz cluster) to prevent duplicate execution
+
+### 8. Caching
+
+- [ ] `@Cacheable` is not on private methods (silently ignored — same proxy issue)
+- [ ] No self-invocation of `@Cacheable` methods (bypasses the cache)
+- [ ] `@EnableCaching` is present on a configuration class (not auto-enabled by Spring Boot)
+- [ ] Caches have TTL and max-size configured — unbounded caches without eviction cause memory leaks
+- [ ] Cached objects are immutable — mutable cached objects can be corrupted by callers modifying the returned reference
+- [ ] `@CacheEvict` is called on write operations that invalidate cached data
+
+### 9. Performance
 
 - [ ] No `@Transactional` methods calling external HTTP APIs (holds DB connection during network I/O)
 - [ ] Database queries inside loops are replaced with batch operations (`IN` clause, `findAllById`, `saveAll`)
@@ -97,8 +127,17 @@ Evaluate every changed file against the following checklist. Only report items t
 - [ ] Response compression is enabled for large payloads (`server.compression.enabled=true`)
 - [ ] Appropriate caching (`@Cacheable`) is used for expensive, idempotent reads
 - [ ] No unnecessary `findById` followed by `save` when `@Modifying` `@Query` suffices for bulk updates
+- [ ] `RestTemplate`/`WebClient` instances are shared and configured with `connectTimeout` and `readTimeout` — missing timeouts let one slow upstream freeze all threads
+- [ ] `RestTemplate` is not instantiated per-request (each creates new connection pools and SSL contexts)
 
-### 8. Testing
+### 10. Connection Pool & Database Config
+
+- [ ] HikariCP `maximumPoolSize` is explicitly configured (default 10 is often insufficient for production)
+- [ ] `leakDetectionThreshold` is enabled in dev/test (2000–5000ms) to catch borrowed-but-never-returned connections
+- [ ] `maxLifetime` is set 30–60 seconds shorter than the database server's connection timeout to prevent stale connections
+- [ ] Long-running transactions or lazy loading are not exhausting the connection pool under load
+
+### 11. Testing
 
 - [ ] `@WebMvcTest` is used for controller tests (not `@SpringBootTest` which loads entire context)
 - [ ] `@DataJpaTest` is used for repository tests with an in-memory database
@@ -109,7 +148,7 @@ Evaluate every changed file against the following checklist. Only report items t
 - [ ] Test data is self-contained — tests don't depend on shared mutable state or execution order
 - [ ] `@Transactional` on test classes is intentional — it auto-rolls back, which can mask flush/constraint bugs
 
-### 9. Configuration & Profiles
+### 12. Configuration & Profiles
 
 - [ ] Secrets and environment-specific values use Spring profiles or environment variables, not hardcoded strings
 - [ ] `application.properties`/`application.yml` does not contain production credentials
@@ -117,7 +156,7 @@ Evaluate every changed file against the following checklist. Only report items t
 - [ ] Logging levels are appropriate: not `DEBUG` in production, not `ERROR`-only in development
 - [ ] Health check and readiness probes are configured for deployment platforms
 
-### 10. Code Quality & Java Best Practices
+### 13. Code Quality & Java Best Practices
 
 - [ ] Records are used for immutable DTOs (Java 16+)
 - [ ] `var` usage is clear — only when the type is obvious from the right-hand side
@@ -128,6 +167,18 @@ Evaluate every changed file against the following checklist. Only report items t
 - [ ] No mutable static fields in any class
 - [ ] String concatenation in loops uses `StringBuilder`
 - [ ] Collections are returned as unmodifiable where mutation is not intended
+- [ ] `System.out.println` and `e.printStackTrace()` are replaced with SLF4J logging
+- [ ] Catching generic `Exception` or `Throwable` instead of specific exception types
+
+### Proxy Bypass Quick Reference
+
+These annotations ALL rely on Spring AOP proxies and share the same failure modes — flag any self-invocation or non-public usage:
+
+| Annotation | Requires | Void return gotcha |
+|---|---|---|
+| `@Transactional` | Auto-enabled | N/A |
+| `@Async` | `@EnableAsync` | Exceptions silently lost |
+| `@Cacheable` | `@EnableCaching` | Mutable returns corrupt cache |
 
 ## Output Format
 
